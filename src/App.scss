@@ -1,4 +1,5 @@
 .app {
+  background-color: white;
   text-align: center;
   margin: 0 auto;
   width: 100%;
@@ -22,7 +23,6 @@
   border-collapse: collapse;
   border-radius: 1em;
   border: 3px solid black;
-  background-color: #f5f7fb;
   td,
   th {
     width: 11.11%;
@@ -59,6 +59,12 @@
       justify-content: center;
     }
   }
+  .marked {
+    border: 3px solid black;
+  }
+  .grey {
+    background-color: #cbcbd2;
+  }
   tr.block-boder:not(:last-child) {
     border-bottom: 3px solid black;
   }
@@ -76,6 +82,20 @@
     span {
       display: block;
       width: 18px;
+      height: 18px;
+    }
+  }
+  .marker-letter {
+    color: black;
+    margin-bottom: 30px;
+    display: flex;
+    flex-wrap: wrap;
+    cursor: text;
+    font-size: 1rem;
+    span {
+      margin-left: 20px;
+      display: block;
+      width: 10px;
       height: 18px;
     }
   }

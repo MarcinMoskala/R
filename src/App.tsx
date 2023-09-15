@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from "react"
 import cx from "classnames"
+// @ts-ignore
 import Sudoku from "./lib/sudoku"
 
 /* eslint import/no-webpack-loader-syntax: off */
-import SudokuSolver from "worker-loader!./workers/solve-sudoku-worker"
-import SudokuGenerator from "worker-loader!./workers/generate-sudoku-worker"
+// import SudokuSolver from "worker-loader!./workers/solve-sudoku-worker"
+// import SudokuGenerator from "worker-loader!./workers/generate-sudoku-worker"
 
 import "./App.scss"
 import "antd/dist/antd.min.css"
@@ -26,40 +27,35 @@ export default function App() {
   const [generating, setGenerating] = useState<boolean>(true)
   const [showTips, setShowTips] = useState<boolean>(false)
   const [editingCell, setEditingCell] = useState<string | null>()
+  const [markers, setMarkers] = useState<string[]>([])
+  const [greyCells, setGreyCells] = useState<string[]>([])
 
   useEffect(() => {
     if (solving) {
-      const sudokuSolver: Worker = new SudokuSolver()
-      sudokuSolver.addEventListener("message", (event: any) => {
-        setSolving(false)
-
-        if (event.data.success) {
-          setGridData(event.data.gridData)
-        } else {
-          Modal.error({
-            title: "Sudoku",
-            content: "Sorry, this sudoku has no solution!"
-          })
-        }
-      })
-
-      setSolvedCells(sudoku.emptyCells())
-      sudokuSolver.postMessage({ gridData, mode })
+      const sudoku = new Sudoku({ mode: mode, grid: gridData })
+      // setSolvedCells(sudoku.emptyCells())
+      setSolving(false)
+      const sudokuSolvedStatus = sudoku.solve()
+      if (sudokuSolvedStatus) {
+        setGridData(sudoku.grid)
+      } else {
+        Modal.error({
+          title: "Sudoku",
+          content: "Sorry, this sudoku has no solution!"
+        })
+      }
     }
   }, [solving, gridData])
 
   useEffect(() => {
     if (generating) {
-      const sudokuGenerator: Worker = new SudokuGenerator()
-      sudokuGenerator.addEventListener("message", (event: any) => {
-        sudoku.grid = event.data.gridData
-        setGenerating(false)
-        setGridData([...sudoku.grid])
-      })
-
+      const generatorSudoku = new Sudoku({ mode: mode })
+      generatorSudoku.generate()
+      sudoku.grid = generatorSudoku.grid
+      setGenerating(false)
+      setGridData([...sudoku.grid])
       setShowTips(false)
       setSolvedCells([])
-      sudokuGenerator.postMessage({ mode })
     }
   }, [generating, gridData])
 
@@ -111,6 +107,43 @@ export default function App() {
     setShowTips(false)
   }
 
+  const setFromString = (str: string) => {
+    resetSudoku()
+    const grid: GridDataType = str
+      .split(",")
+      .map(row => row.split("").map(l => parseInt(l)))
+    setGridData(grid)
+    sudoku.grid = grid
+  }
+
+  const toggleMarker = (editingCell: string) => {
+    if (!editingCell) return
+    const isMarked = markers.some(m => m === editingCell)
+    if (isMarked) {
+      setMarkers(markers.filter(m => m !== editingCell))
+    } else {
+      setMarkers([...markers, editingCell])
+    }
+  }
+
+  const toggleGrey = (editingCell: string) => {
+    if (!editingCell) return
+    const isMarked = greyCells.some(m => m === editingCell)
+    if (isMarked) {
+      setGreyCells(greyCells.filter(m => m !== editingCell))
+    } else {
+      setGreyCells([...greyCells, editingCell])
+    }
+  }
+
+  const markerLetterFor = (cell: string) => {
+    const markerIndex = markers.indexOf(cell)
+    if (markerIndex === -1) return ""
+    return String.fromCharCode(65 + markerIndex)
+  }
+
+  console.log("gridData", gridData.map(row => row.join("")).join(","))
+
   return (
     <div className="app">
       <div className="app-sudoku">
@@ -131,12 +164,27 @@ export default function App() {
                         "block-boder": (x + 1) % sudoku.mode.width === 0,
                         solved: solvedCells.some(
                           arr => arr.join() === [x, y].join()
-                        )
+                        ),
+                        marked: markers.indexOf([x, y].join()) !== -1,
+                        grey: greyCells.indexOf([x, y].join()) !== -1
                       })}
                       onClick={() => setEditingCell([x, y].join())}
                     >
-                      <div className="cell">
-                        {showTips && !value && editingCell !== [x, y].join() ? (
+                      <div
+                        className={cx({
+                          cell: true
+                        })}
+                      >
+                        {markerLetterFor([x, y].join()) !== "" &&
+                          markers.length > 1 && (
+                            <div className="marker-letter">
+                              <span>{markerLetterFor([x, y].join())}</span>
+                            </div>
+                          )}
+                        {showTips &&
+                        greyCells.indexOf([x, y].join()) === -1 &&
+                        !value &&
+                        editingCell !== [x, y].join() ? (
                           <div className="sudoku-tips">
                             {NUMBERS.map(num => (
                               <span key={num}>
@@ -150,6 +198,13 @@ export default function App() {
                             type="text"
                             value={value || ""}
                             onChange={e => setValue(x, y, e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === "m") {
+                                toggleMarker([x, y].join())
+                              } else if (e.key === "g") {
+                                toggleGrey([x, y].join())
+                              }
+                            }}
                             readOnly={generating || solving}
                             ref={input =>
                               (inputRefs.current[[x, y].join()] = input)
@@ -191,6 +246,17 @@ export default function App() {
                 disabled={generating || solving}
               >
                 Clear All
+              </Button>
+              <Button
+                size="large"
+                onClick={() => {
+                  const str = prompt("Please input sudoku string:")
+                  if (str) {
+                    setFromString(str)
+                  }
+                }}
+              >
+                From string
               </Button>
             </Button.Group>
           </div>
